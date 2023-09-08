@@ -1,14 +1,14 @@
-# Project
+# Cosmos DB Emulator Recipes
 
-> This repo has been populated by an initial template to help get you started. Please
-> make sure to update the content to build a great experience for community-building.
+This repo contains recipes for using the Cosmos DB Emulator with `docker compose` with various platforms and SDKs. These recipes are intended to be used as a reference for your own projects. 
 
-As the maintainer of this project, please make a few updates:
+## Recipes
 
-- Improving this README.MD file to provide a great experience
-- Updating SUPPORT.MD with content about this project's support experience
-- Understanding the security reporting process in SECURITY.MD
-- Remove this section from the README
+|SDK|Platform|Recipe|
+|---|---|---|
+|.NET Core| Linux|[Console App](dotnet/linux/README.md)|
+|Node.js|Linux|[Express App](nodejs/linux/README.md)|
+
 
 ## Contributing
 
