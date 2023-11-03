@@ -13,7 +13,7 @@ services:
     container_name: "azure-cosmosdb-emulator"
     hostname: "azurecosmosemulator"
     image: 'mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:latest'
-    mem_limit: 3GB
+    mem_limit: 4GB
     tty: true
     ports:
     - '8081:8081'
@@ -36,7 +36,7 @@ services:
     environment:
       - COSMOS_ENDPOINT=https://azurecosmosemulator:8081/
     env_file:
-      - ./FunctionApp/.env
+      - ./.env
     networks:
       default:
         ipv4_address: 172.16.238.242

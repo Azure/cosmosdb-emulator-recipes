@@ -13,10 +13,10 @@ services:
     container_name: "azure-cosmosdb-emulator"
     hostname: "azurecosmosemulator"
     image: 'mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:latest'
-    mem_limit: 3GB
+    mem_limit: 4GB
     tty: true
     ports:
-    - '8081:8081'
+    - '8081:8081' # Data Explorer
     - '8900:8900'
     - '8901:8901'
     - '8902:8902'

@@ -17,21 +17,23 @@ namespace FunctionApp
 {
     public static class Notes
     {
-        
+
         static Notes()
         {
+            System.AppDomain.CurrentDomain.UnhandledException += UnhandledExceptionTrapper;
             var builder = new ConfigurationBuilder().AddEnvironmentVariables();
             var root = builder.Build();
             EndpointUrl = root["COSMOS_ENDPOINT"];
             PrimaryKey = root["COSMOS_KEY"];
 
-            System.AppDomain.CurrentDomain.UnhandledException += UnhandledExceptionTrapper;
+
+            var client = CreateClient(EndpointUrl, PrimaryKey);
             // Create the database if it does not exist
-            CosmosClient.CreateDatabaseIfNotExistsAsync("Notes").Wait();
+            client.CreateDatabaseIfNotExistsAsync("Notes").Wait();
 
             // Create the container if it does not exist. 
-            CosmosClient.GetDatabase("Notes").CreateContainerIfNotExistsAsync("Notes", "/id").Wait();
-            var database = CosmosClient.GetDatabase("Notes");
+            client.GetDatabase("Notes").CreateContainerIfNotExistsAsync("Notes", "/id").Wait();
+            var database = client.GetDatabase("Notes");
             Container = database.GetContainer("Notes");
         }
 
@@ -41,28 +43,6 @@ namespace FunctionApp
 
         private static readonly string PrimaryKey;
 
-        private static readonly CosmosClient CosmosClient = new(EndpointUrl, PrimaryKey,
-            new CosmosClientOptions()
-            {
-                SerializerOptions = new CosmosSerializationOptions
-                {
-                    PropertyNamingPolicy = CosmosPropertyNamingPolicy.CamelCase
-                },
-                HttpClientFactory = () =>
-                {
-                    /*                               *** WARNING ***
-                        * This code is for demo purposes only. In production, you should use the default behavior,
-                        * which relies on the operating system's certificate store to validate the certificates.
-                    */
-                    HttpMessageHandler httpMessageHandler = new HttpClientHandler
-                    {
-                        ServerCertificateCustomValidationCallback =
-                            HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
-                    };
-                    return new HttpClient(httpMessageHandler);
-                },
-                ConnectionMode = ConnectionMode.Gateway
-            });
 
         [FunctionName("Notes")]
         public static async Task<IActionResult> Run(
@@ -190,7 +170,8 @@ namespace FunctionApp
             return response.StatusCode == System.Net.HttpStatusCode.NoContent;
         }
 
-        static void UnhandledExceptionTrapper(object sender, UnhandledExceptionEventArgs e) {
+        static void UnhandledExceptionTrapper(object sender, UnhandledExceptionEventArgs e)
+        {
             Console.WriteLine(e.ExceptionObject.ToString());
         }
     }
