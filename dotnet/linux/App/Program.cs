@@ -54,7 +54,7 @@ namespace MyApp
 
             Console.WriteLine($"New container:\t{container.Id}");
 
-            Console.WriteLine("Creating 100 items..");
+            Console.WriteLine("Creating 1000 items..");
             Random rnd = new Random();
             for (int i = 0; i < 1000; i++)
             {
@@ -75,8 +75,8 @@ namespace MyApp
                         partitionKey: new PartitionKey(catId)
                     );
 
-                Console.WriteLine($"Created item {i+1}:\t{createdItem.id}\t[{createdItem.categoryName}]");
-                await Task.Delay(rnd.Next(100));
+                Console.WriteLine($"Created item {i + 1}:\t{createdItem.id}\t[{createdItem.categoryName}]");
+                await Task.Delay(rnd.Next(rnd.Next(100)));
             }
         }
 
@@ -113,7 +113,8 @@ namespace MyApp
             });
         }
 
-        static void UnhandledExceptionTrapper(object sender, UnhandledExceptionEventArgs e) {
+        static void UnhandledExceptionTrapper(object sender, UnhandledExceptionEventArgs e)
+        {
             Console.WriteLine(e.ExceptionObject.ToString());
             Environment.Exit(1);
         }

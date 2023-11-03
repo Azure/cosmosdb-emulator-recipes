@@ -34,6 +34,6 @@ curl --location 'http://localhost:8080/api/notes' \
 ```
 ### Delete a Note
 ```
-curl --location --request DELETE 'http://localhost:3000/notes/{id}'
+curl --location --request DELETE 'http://localhost:8080/api/notes/{id}'
 ```
 Replace `id` with the Id of the note you want to delete.
