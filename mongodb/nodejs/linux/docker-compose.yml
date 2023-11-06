@@ -1,0 +1,50 @@
+version: "3.8"
+networks:
+  default:
+    external: true
+    ipam:
+      driver: default
+      config:
+        - subnet: "172.16.238.0/24"
+
+services:
+  cosmosdb:
+    restart: always
+    container_name: "azure-cosmosdb-emulator"
+    hostname: "azurecosmoslinuxemulator"
+    image: 'mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:latest'
+    mem_limit: 4GB
+    tty: true
+    ports:
+    - '8081:8081'
+    - '10250:10250'
+    - '10251:10251'
+    - '10252:10252'
+    - '10253:10253'
+    - '10254:10254'
+    - '10255:10255'
+    environment:
+      - AZURE_COSMOS_EMULATOR_PARTITION_COUNT=4
+      - AZURE_COSMOS_EMULATOR_ENABLE_DATA_PERSISTENCE=false
+      - AZURE_COSMOS_EMULATOR_ENABLE_MONGODB_ENDPOINT=4.0
+      - AZURE_COSMOS_EMULATOR_IP_ADDRESS_OVERRIDE=172.16.238.247
+    networks:
+      default:
+        ipv4_address: 172.16.238.247
+  app:
+    container_name: "cosmosdb-notes-mongodb"
+    build: 
+      context: .
+      dockerfile: node-app.dockerfile
+    ports:
+      - "3000:3000"
+    restart: always
+    depends_on:
+      - cosmosdb
+    environment:
+      - TLS_ALLOW_INVALID_CERTIFICATES=true #WARNING: to be used only in non-prod.
+    env_file:
+      - .env #contains COSMOSDB_CONNECTION_STRING
+    networks:
+      default:
+        ipv4_address: 172.16.238.242
