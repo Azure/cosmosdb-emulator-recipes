@@ -3,7 +3,7 @@ const MongoClient = require("mongodb").MongoClient;
 const ObjectId = require("mongodb").ObjectId;
 
 const connectionString = process.env.COSMOSDB_CONNECTION_STRING;
-console.log(connectionString);
+
 let databaseId = process.env.COSMOS_DATABASE || "notes";
 const client = new MongoClient(connectionString, {
   tlsAllowInvalidCertificates: true,
@@ -29,7 +29,6 @@ async function getNotes() {
 }
 
 async function writeNote(note) {
-
   const database = client.db(databaseId);
   const collection = database.collection(databaseId);
   const itemDef = {

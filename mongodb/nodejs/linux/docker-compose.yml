@@ -1,7 +1,7 @@
 version: "3.8"
 networks:
   default:
-    external: true
+    external: false
     ipam:
       driver: default
       config:
@@ -11,7 +11,7 @@ services:
   cosmosdb:
     restart: always
     container_name: "azure-cosmosdb-emulator"
-    hostname: "azurecosmoslinuxemulator"
+    hostname: "azurecosmoslinuxemulator" 
     image: 'mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:latest'
     mem_limit: 4GB
     tty: true
