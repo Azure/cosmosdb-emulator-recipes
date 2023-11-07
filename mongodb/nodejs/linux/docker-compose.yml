@@ -41,8 +41,6 @@ services:
     restart: always
     depends_on:
       - cosmosdb
-    environment:
-      - TLS_ALLOW_INVALID_CERTIFICATES=true #WARNING: to be used only in non-prod.
     env_file:
       - .env #contains COSMOSDB_CONNECTION_STRING
     networks:
