@@ -1,6 +1,6 @@
 # Node.js express using CosmosDB Emulator Linux Docker
 
-This sample app is a notes app that uses the MongoDB Node.js Driver to connect to a CosmosDB MongoDB API instance running in a Linux Docker container. The sample creates basic CRUD operations.
+This sample application is a note-taking app that leverages the MongoDB Node.js Driver to establish a connection with a CosmosDB MongoDB API instance, which is hosted within a Linux Docker container. This sample showcases fundamental CRUD (Create, Read, Update, Delete) operations.
 
 ## Pre-requisites
 Docker Compose is required to run this sample. You can download Docker Compose from [here](https://docs.docker.com/compose/install/).
@@ -24,7 +24,7 @@ For other cases, simply use following connection string:
 4. ```docker compose up```
 
 ## Notes API 
-Once the docker containers are running, you can use the following cURL commands to interact with the API.
+Once the docker containers are running, you can use the following curl commands to interact with the API.
 
 ### Read all Notes
 ```curl --location 'http://localhost:3000/notes/'```
