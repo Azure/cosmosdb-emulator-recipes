@@ -9,6 +9,7 @@ This repo contains recipes for using the Cosmos DB Emulator with `docker compose
 |.NET| Linux|[Console App](dotnet/linux/README.md)|
 |.NET| Linux|[Azure Functions App](dotnet/azure-functions/README.md)|
 |Node.js|Linux|[Express App](nodejs/linux/README.md)|
+|MongoDB Node Driver|Linux|[Express App](mongodb/nodejs/linux/README.md)|
 ## Contributing
 
 This project welcomes contributions and suggestions.  Most contributions require you to agree to a
