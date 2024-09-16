@@ -1,0 +1,110 @@
+name: Cosmos DB Emulator Sample
+on:
+  workflow_dispatch:
+
+jobs:
+  test_emulator:
+    runs-on: ubuntu-22.04
+
+    steps:
+      # Print machine information
+      - name: Print Machine Information
+        run: |
+          echo "CPU Information:"
+          lscpu
+          echo "Memory Information:"
+          free -h
+          echo "Disk Usage:"
+          df -h
+          echo "Operating System Information:"
+          uname -a
+          echo "Network Configuration:"
+          ip addr show
+          echo "Docker Version:"
+          docker --version
+          echo "Docker Info:"
+          docker info
+      # Check out code
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # Set up Python
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      # Install Python dependencies
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install azure-cosmos
+  
+      # Run Cosmos DB Emulator and Test
+      - name: Start emulator
+        id: run_emulator
+        run: |
+          set -e
+          MAX_RETRIES=5
+          SUCCESS=false
+          for i in $(seq 1 $MAX_RETRIES); do
+            echo "Attempt #$i"
+            docker run \
+              --publish 8081:8081 \
+              --publish 10250-10255:10250-10255 \
+              --detach \
+              --name=test-linux-emulator-tty-$i \
+              --interactive \
+              --tty \
+              mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:latest
+            echo "Waiting for Emulator to Start"
+            sleep 90  # Increased startup timeout
+            echo "Getting Emulator Logs"
+            docker logs test-linux-emulator-tty-$i
+            echo "Checking Emulator Logs for 'Started' Keyword"
+            if docker logs test-linux-emulator-tty-$i | grep -q "Started"; then
+              echo "Emulator started successfully."
+              SUCCESS=true
+              break
+            else
+              echo "Emulator failed to start on attempt #$i." >&2
+              docker rm -f test-linux-emulator-tty-$i || true  # Ensure cleanup even in failure
+              echo "Retrying..."
+            fi
+          done
+          if [ "$SUCCESS" = false ]; then
+            echo "Emulator failed to start after $MAX_RETRIES attempts." >&2
+            echo "::error::Emulator failed to start after $MAX_RETRIES attempts."
+            exit 1
+          fi
+      # Download and install Cosmos DB emulator certificate
+      - name: Download and install Cosmos DB emulator certificate
+        if: steps.run_emulator.outcome == 'success'
+        run: |
+          # Download the emulator certificate
+          curl -k https://localhost:8081/_explorer/emulator.pem > ~/emulatorcert.crt
+          
+          # Install the emulator certificate
+          sudo cp ~/emulatorcert.crt /usr/local/share/ca-certificates/
+          sudo update-ca-certificates
+          # Verify the installation
+          ls -l /usr/local/share/ca-certificates/emulatorcert.crt
+          ls -l /etc/ssl/certs/emulatorcert.pem
+          
+          # Ensure the directory exists
+          mkdir -p /opt/hostedtoolcache/Python/3.12.3/x64/lib/python3.12/site-packages/certifi/
+          # Append cert to python ca bundle
+          sudo sh -c 'echo >> /opt/hostedtoolcache/Python/3.12.5/x64/lib/python3.12/site-packages/certifi/cacert.pem'
+          sudo sh -c 'cat /usr/local/share/ca-certificates/emulatorcert.crt >> /opt/hostedtoolcache/Python/3.12.5/x64/lib/python3.12/site-packages/certifi/cacert.pem'
+      # Test Emulator with Python script. Replace cosmosdb.py with your script path and add COSMOS_DB_KEY(emulator connection string) to the repository secrets
+      - name: Run Python script
+        env:
+          COSMOS_DB_KEY: ${{ secrets.COSMOS_DB_KEY }}
+        run: |
+          python github-actions/cosmosdb.py
+      # Clean up
+      - name: Clean up
+        if: steps.run_emulator.outcome == 'success'
+        run: |
+          echo "Cleaning up"
+          docker rm -f test-linux-emulator-tty-$i || true  # Ensure cleanup even in failure
