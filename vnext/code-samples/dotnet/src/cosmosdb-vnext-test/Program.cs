@@ -168,7 +168,7 @@ public class CosmosDbDemo
                 partitionKey: new PartitionKey(partitionKey)
             );
             
-            Console.WriteLine($"Updated document - Status: {updateResponse.StatusCode}, Request Charge: {updateResponse.RequestCharge} RUs");
+            Console.WriteLine($"Updated document - Status: {updateResponse.StatusCode}");
             
             // Query to verify the update
             Console.WriteLine("Verifying update by querying the document:");
@@ -178,7 +178,7 @@ public class CosmosDbDemo
             );
             
             TestDocument updatedDocument = verifyResponse.Resource;
-            Console.WriteLine($"Verified document: Id={updatedDocument.Id}, City={updatedDocument.City}, Request Charge: {verifyResponse.RequestCharge} RUs");
+            Console.WriteLine($"Verified document: Id={updatedDocument.Id}, City={updatedDocument.City}");
         }
         catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
         {
@@ -240,7 +240,8 @@ public class CosmosDbDemo
         int count = 0;
         foreach (var document in queryable)
         {
-            Console.WriteLine($"Found document: Id={document.Id}, Queryfield={document.Queryfield}, PartitionKey={document.PartitionKey}, City={document.City}");
+            Console.WriteLine($"Found document: Id={document.Id}, Queryfield={document.Queryfield},
+             PartitionKey={document.PartitionKey}, City={document.City}");
             count++;
         }
         
