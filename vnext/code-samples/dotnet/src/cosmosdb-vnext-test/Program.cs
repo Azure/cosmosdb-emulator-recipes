@@ -240,8 +240,7 @@ public class CosmosDbDemo
         int count = 0;
         foreach (var document in queryable)
         {
-            Console.WriteLine($"Found document: Id={document.Id}, Queryfield={document.Queryfield},
-             PartitionKey={document.PartitionKey}, City={document.City}");
+            Console.WriteLine($"Found document: Id={document.Id}, Queryfield={document.Queryfield}, PartitionKey={document.PartitionKey}, City={document.City}");
             count++;
         }
         
