@@ -19,6 +19,9 @@ public class TestDocument
 
     [JsonProperty("city")]
     public string City { get; set; }
+
+    [JsonProperty("ttl")]
+    public int TimeToLive { get; set; }
 }
 
 public class CosmosDbDemo
@@ -85,8 +88,17 @@ public class CosmosDbDemo
         TestDocument document1 = await CreateDocumentAsync(container, "document1", "field1", partitionKey1, "Seattle");
         TestDocument document2 = await CreateDocumentAsync(container, "document2", "field2", partitionKey2, "Portland");
 
+        Console.WriteLine("Reading all documents unchanged...");
+        await QueryAllDocumentsAsync(container);
+
         Console.WriteLine("\nUpdating document...");
         await UpdateDocumentAndVerifyAsync(container, "document1", partitionKey1, "Chicago");
+
+        Console.WriteLine("\nUpsert new document...");
+        await UpsertDocumentAndVerifyAsync(container, "document3", "field1", partitionKey2, "New Orleans");
+
+        Console.WriteLine("\nUpsert existing document...");
+        await UpsertDocumentAndVerifyAsync(container, "document2", "field1", partitionKey2, "Miami");
         
         Console.WriteLine("Reading documents with partition key filter...");
         await QueryDocumentsByPartitionKeyAsync(container, partitionKey1);
@@ -183,6 +195,47 @@ public class CosmosDbDemo
         catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
         {
             Console.WriteLine($"Document with id {id} not found!");
+        }
+    }
+
+    private async Task UpsertDocumentAndVerifyAsync(Container container, string id, string queryField, string partitionKey, string city)
+    {
+        Console.WriteLine($"Upserting document {id} with partition key {partitionKey}");
+        
+        try
+        {
+            // Create a new document or update existing one
+            TestDocument document = new TestDocument
+            {
+                Id = id,
+                Queryfield = queryField,
+                PartitionKey = partitionKey,
+                City = city,
+                TimeToLive = 3600  // Set TTL to 1 hour (3600 seconds)
+            };
+            
+            // Upsert the document (creates if doesn't exist, or replaces if it does)
+            ItemResponse<TestDocument> upsertResponse = await container.UpsertItemAsync(
+                item: document,
+                partitionKey: new PartitionKey(partitionKey)
+            );
+            
+            Console.WriteLine($"Upserted document - Status: {upsertResponse.StatusCode}");
+            
+            // Verify the upsert by reading the document
+            Console.WriteLine("Verifying upsert by reading the document:");
+            ItemResponse<TestDocument> verifyResponse = await container.ReadItemAsync<TestDocument>(
+                id: id,
+                partitionKey: new PartitionKey(partitionKey)
+            );
+            
+            TestDocument upsertedDocument = verifyResponse.Resource;
+            Console.WriteLine($"Verified document: Id={upsertedDocument.Id}, Queryfield={upsertedDocument.Queryfield}, " +
+                            $"PartitionKey={upsertedDocument.PartitionKey}, City={upsertedDocument.City}");
+        }
+        catch (CosmosException ex)
+        {
+            Console.WriteLine($"Error upserting document: {ex.StatusCode} - {ex.Message}");
         }
     }
 
