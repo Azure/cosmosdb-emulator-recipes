@@ -1,0 +1,19 @@
+version: "3.8"
+
+services:
+  cosmosdb-vnext:
+    restart: always
+    container_name: "azure-cosmosdb-emulator-vnext"
+    image: 'mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:vnext-preview'
+    mem_limit: 4GB
+    tty: true
+    ports:
+    - '8081:8081' # Cosmos DB endpoint
+    - '1234:1234' # Data Explorer
+    environment:
+      - PROTOCOL=https
+      - ENABLE_EXPLORER=true
+      - EXPLORER_PORT=1234
+      - PORT=8081
+      - LOG_LEVEL=info
+      - ENABLE_TELEMETRY=false

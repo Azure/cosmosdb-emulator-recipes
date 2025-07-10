@@ -1,8 +1,10 @@
 ﻿﻿// Program.cs
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
+using System.Threading;
 using Microsoft.Azure.Cosmos;
 using Newtonsoft.Json;
 
@@ -21,10 +23,23 @@ public class TestDocument
     public string City { get; set; }
 }
 
+// Simple document matching the GitHub issue setup (partition key /id)
+public class SimpleDocument
+{
+    [JsonProperty("id")]
+    public string Id { get; set; }
+
+    [JsonProperty("name")]
+    public string Name { get; set; }
+
+    [JsonProperty("value")]
+    public int Value { get; set; }
+}
+
 public class CosmosDbDemo
 {
     // Update these constants with your own Cosmos DB endpoint and key
-    private const string EndpointUrl = "http://localhost:8081";  // Use your actual endpoint and match protocol (http/https)
+    private const string EndpointUrl = "https://localhost:8081";  // vnext-preview uses HTTPS by default
     private const string PrimaryKey = "C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==";
     
     private CosmosClient cosmosClient;
@@ -111,6 +126,15 @@ public class CosmosDbDemo
 
         Console.WriteLine("\nRunning Change Feed Demo...");
         await RunChangeFeedDemoAsync(container);
+
+        Console.WriteLine("\nTesting Issue #216 Reproduction...");
+        await TestIssue216ReproductionAsync(container);
+
+        Console.WriteLine("\nTesting Issue #216 with Simple Container...");
+        await TestIssue216SimpleContainerAsync();
+
+        Console.WriteLine("\n🎯 Testing EXACT GitHub Issue #216 reproduction...");
+        await TestGitHubIssue216ExactReproductionAsync();
 
         Console.WriteLine("Cleaning up...");
         await database.DeleteAsync();
@@ -590,5 +614,215 @@ public class CosmosDbDemo
         
         Console.WriteLine($"Completed draining change feed - Total: {allChanges.Count} documents, {pageCount} pages");
         return allChanges;
+    }
+
+    private async Task TestIssue216ReproductionAsync(Container container)
+    {
+        Console.WriteLine("=== Testing Issue #216 Reproduction ===");
+        Console.WriteLine("Using PageSizeHint = 100 (similar to user's issue)");
+        
+        try
+        {
+            // First create some test documents
+            Console.WriteLine("Creating test documents...");
+            await CreateDocumentAsync(container, "issue216-doc1", "field1", "pk1", "TestCity1");
+            await CreateDocumentAsync(container, "issue216-doc2", "field2", "pk2", "TestCity2");
+            
+            // Try to reproduce the issue with PageSizeHint = 100
+            using var iterator = container.GetChangeFeedIterator<TestDocument>(
+                ChangeFeedStartFrom.Beginning(),
+                ChangeFeedMode.LatestVersion,
+                new ChangeFeedRequestOptions { PageSizeHint = 100 });
+
+            Console.WriteLine("Attempting to read change feed with PageSizeHint = 100...");
+            
+            if (iterator.HasMoreResults)
+            {
+                var response = await iterator.ReadNextAsync();
+                Console.WriteLine($"✅ Success! Retrieved {response.Count} documents");
+                Console.WriteLine($"Status Code: {response.StatusCode}");
+                Console.WriteLine($"Continuation Token: {response.ContinuationToken?.Substring(0, Math.Min(50, response.ContinuationToken.Length))}...");
+                
+                foreach (var doc in response)
+                {
+                    Console.WriteLine($"  Document: Id={doc.Id}, City={doc.City}");
+                }
+            }
+            else
+            {
+                Console.WriteLine("No results available");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Error occurred (reproducing issue #216): {ex.Message}");
+            Console.WriteLine($"Exception Type: {ex.GetType().Name}");
+            if (ex.InnerException != null)
+            {
+                Console.WriteLine($"Inner Exception: {ex.InnerException.Message}");
+            }
+        }
+
+        // Also test with a simple container (no hierarchical partition keys)
+        await TestIssue216SimpleContainerAsync();
+    }
+
+    private async Task TestIssue216SimpleContainerAsync()
+    {
+        Console.WriteLine("=== Testing Issue #216 with Simple Container (no hierarchical partition keys) ===");
+        
+        try
+        {
+            // Create a simple container without hierarchical partition keys (like user might have)
+            string databaseName = $"simple-db-{Guid.NewGuid():N}";
+            string containerName = $"simple-container-{Guid.NewGuid():N}";
+            
+            Console.WriteLine($"Creating simple database: {databaseName}");
+            Database database = await cosmosClient.CreateDatabaseIfNotExistsAsync(databaseName);
+            
+            Console.WriteLine($"Creating simple container: {containerName}");
+            ContainerProperties containerProperties = new ContainerProperties
+            {
+                Id = containerName,
+                PartitionKeyPath = "/id"  // Simple single partition key like user's setup
+            };
+            Container container = (await database.CreateContainerIfNotExistsAsync(containerProperties)).Container;
+            
+            // Create simple test documents
+            Console.WriteLine("Creating simple test documents...");
+            var doc1 = new { id = "simple1", data = "test1" };
+            var doc2 = new { id = "simple2", data = "test2" };
+            
+            await container.CreateItemAsync(doc1, new PartitionKey("simple1"));
+            await container.CreateItemAsync(doc2, new PartitionKey("simple2"));
+            
+            Console.WriteLine("Testing Change Feed with simple container and PageSizeHint = 100...");
+            
+            // Try the exact same pattern as the user
+            using var iterator = container.GetChangeFeedIterator<dynamic>(
+                ChangeFeedStartFrom.Beginning(),
+                ChangeFeedMode.LatestVersion,
+                new ChangeFeedRequestOptions { PageSizeHint = 100 });
+
+            if (iterator.HasMoreResults)
+            {
+                var response = await iterator.ReadNextAsync();
+                Console.WriteLine($"✅ Success! Retrieved {response.Count} documents");
+                Console.WriteLine($"Status Code: {response.StatusCode}");
+                
+                foreach (var doc in response)
+                {
+                    Console.WriteLine($"  Document: {doc}");
+                }
+            }
+            else
+            {
+                Console.WriteLine("No results available");
+            }
+            
+            // Clean up
+            await database.DeleteAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Error occurred: {ex.Message}");
+            Console.WriteLine($"Exception Type: {ex.GetType().Name}");
+            if (ex.InnerException != null)
+            {
+                Console.WriteLine($"Inner Exception: {ex.InnerException.Message}");
+            }
+        }
+    }
+
+    // EXACT REPRODUCTION of GitHub Issue #216 code
+    private async Task<(IEnumerable<SimpleDocument> documents, string continuationToken)> TestGitHubIssue216ExactCodeAsync(Container container, CancellationToken cancellationToken = default)
+    {
+        Console.WriteLine("\n🔬 Testing EXACT code from GitHub Issue #216...");
+        
+        try
+        {
+            using var iterator = container.GetChangeFeedIterator<SimpleDocument>(
+                ChangeFeedStartFrom.Beginning(),
+                ChangeFeedMode.LatestVersion,
+                new ChangeFeedRequestOptions { PageSizeHint = 100 });
+
+            if (iterator.HasMoreResults)
+            {
+                var response = await iterator.ReadNextAsync(cancellationToken);
+                Console.WriteLine($"✅ SUCCESS - GitHub Issue #216 code worked!");
+                Console.WriteLine($"Retrieved {response.Count} documents");
+                Console.WriteLine($"Status Code: {response.StatusCode}");
+                return (response, response.ContinuationToken);
+            }
+
+            Console.WriteLine("No more results available");
+            return ([], null);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ REPRODUCED GitHub Issue #216 Error: {ex.Message}");
+            Console.WriteLine($"Exception Type: {ex.GetType().Name}");
+            if (ex.InnerException != null)
+            {
+                Console.WriteLine($"Inner Exception: {ex.InnerException.Message}");
+            }
+            
+            // Check if this is the specific error reported
+            if (ex.Message.Contains("cosmos_api.document_change_feed") && ex.Message.Contains("Does Not Exist"))
+            {
+                Console.WriteLine("🎯 CONFIRMED: This is the exact error reported in GitHub Issue #216!");
+            }
+            
+            throw; // Re-throw to maintain the exception chain
+        }
+    }
+
+    // Test exact GitHub Issue #216 reproduction with proper setup
+    private async Task TestGitHubIssue216ExactReproductionAsync()
+    {
+        Console.WriteLine("\n🎯 Setting up EXACT GitHub Issue #216 test case...");
+        
+        try
+        {
+            // Create a separate database and container that matches the GitHub issue setup
+            string issueDatabaseName = "my-db"; // Name mentioned in the issue
+            string issueContainerName = "myentity"; // Name mentioned in the issue
+            
+            Console.WriteLine($"Creating issue test database: {issueDatabaseName}");
+            Database issueDatabase = await cosmosClient.CreateDatabaseIfNotExistsAsync(issueDatabaseName);
+            
+            Console.WriteLine($"Creating issue test container: {issueContainerName} with partition key /id");
+            ContainerProperties issueContainerProperties = new ContainerProperties
+            {
+                Id = issueContainerName,
+                PartitionKeyPath = "/id"  // Simple partition key like in the issue
+            };
+            
+            Container issueContainer = await issueDatabase.CreateContainerIfNotExistsAsync(issueContainerProperties);
+            
+            // Add some test data
+            Console.WriteLine("Adding test documents...");
+            var doc1 = new SimpleDocument { Id = "test1", Name = "Document 1", Value = 100 };
+            var doc2 = new SimpleDocument { Id = "test2", Name = "Document 2", Value = 200 };
+            
+            await issueContainer.CreateItemAsync(doc1, new PartitionKey(doc1.Id));
+            await issueContainer.CreateItemAsync(doc2, new PartitionKey(doc2.Id));
+            
+            Console.WriteLine("Documents created. Testing Change Feed with exact GitHub issue code...");
+            
+            // Test the exact code from GitHub issue
+            var result = await TestGitHubIssue216ExactCodeAsync(issueContainer);
+            
+            Console.WriteLine($"✅ Test completed successfully! Retrieved {result.documents.Count()} documents");
+            
+            // Clean up the test database
+            await issueDatabase.DeleteAsync();
+            Console.WriteLine("Issue test database cleaned up");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ GitHub Issue #216 exact reproduction test failed: {ex.Message}");
+            throw;
+        }
     }
 }
