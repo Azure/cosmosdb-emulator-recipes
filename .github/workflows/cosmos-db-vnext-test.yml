@@ -1,0 +1,172 @@
+name: Cosmos DB vNext Emulator Test
+
+on:
+  push:
+    branches: [ main, master ]
+    paths:
+      - 'vnext/code-samples/dotnet/**'
+      - '.github/workflows/cosmos-db-vnext-test.yml'
+  pull_request:
+    branches: [ main, master ]
+    paths:
+      - 'vnext/code-samples/dotnet/**'
+      - '.github/workflows/cosmos-db-vnext-test.yml'
+  workflow_dispatch:
+
+jobs:
+  test-cosmos-db-vnext:
+    runs-on: ubuntu-latest
+    
+    services:
+      cosmos-db-emulator:
+        image: mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:vnext-preview
+        ports:
+          - 8081:8081
+          - 1234:1234
+        env:
+          AZURE_COSMOS_EMULATOR_PARTITION_COUNT: 2
+          AZURE_COSMOS_EMULATOR_ENABLE_DATA_PERSISTENCE: false
+          AZURE_COSMOS_EMULATOR_IP_ADDRESS_OVERRIDE: 127.0.0.1
+        options: >-
+          --memory=3g
+          --cpus=2.0
+          --health-cmd="curl -k https://localhost:8081/_explorer/emulator.pem || exit 1"
+          --health-interval=30s
+          --health-timeout=10s
+          --health-retries=10
+          --health-start-period=120s
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+
+    - name: Restore .NET dependencies
+      run: |
+        cd vnext/code-samples/dotnet/src/cosmosdb-vnext-test
+        dotnet restore
+
+    - name: Build .NET project
+      run: |
+        cd vnext/code-samples/dotnet/src/cosmosdb-vnext-test
+        dotnet build --no-restore --configuration Release
+
+    - name: Run Cosmos DB vNext Tests
+      run: |
+        cd vnext/code-samples/dotnet/src/cosmosdb-vnext-test
+        echo "Running GitHub Issue #216 reproduction test..."
+        timeout 600 dotnet run --configuration Release --no-build 2>&1 | tee test-output.log
+        
+        # Check if the test completed successfully
+        if grep -q "Demo completed successfully!" test-output.log; then
+          echo "✅ Test completed successfully!"
+        else
+          echo "❌ Test did not complete successfully"
+          exit 1
+        fi
+        
+        # Check for any GitHub Issue #216 errors
+        if grep -q "REPRODUCED GitHub Issue #216 Error" test-output.log; then
+          echo "🎯 Successfully reproduced GitHub Issue #216!"
+          grep -A 5 "REPRODUCED GitHub Issue #216 Error" test-output.log
+        else
+          echo "✅ GitHub Issue #216 was NOT reproduced (expected behavior)"
+        fi
+        
+        # Check Change Feed success
+        if grep -q "SUCCESS - GitHub Issue #216 code worked!" test-output.log; then
+          echo "✅ Change Feed with exact GitHub Issue #216 code worked correctly"
+        else
+          echo "❌ Change Feed test failed"
+          exit 1
+        fi
+
+    - name: Generate Test Report
+      if: always()
+      run: |
+        cd vnext/code-samples/dotnet/src/cosmosdb-vnext-test
+        echo "# Cosmos DB vNext Emulator Test Report" > test-report.md
+        echo "" >> test-report.md
+        echo "## Test Environment" >> test-report.md
+        echo "- **Date**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> test-report.md
+        echo "- **Emulator**: mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:vnext-preview" >> test-report.md
+        echo "- **API Endpoint**: https://localhost:8081" >> test-report.md
+        echo "- **Data Explorer**: https://localhost:1234" >> test-report.md
+        echo "- **SDK**: Microsoft.Azure.Cosmos 3.52.0" >> test-report.md
+        echo "" >> test-report.md
+        
+        echo "## Test Results" >> test-report.md
+        
+        if [ -f test-output.log ]; then
+          if grep -q "Demo completed successfully!" test-output.log; then
+            echo "✅ **Overall Status**: PASSED" >> test-report.md
+          else
+            echo "❌ **Overall Status**: FAILED" >> test-report.md
+          fi
+          
+          if grep -q "SUCCESS - GitHub Issue #216 code worked!" test-output.log; then
+            echo "✅ **GitHub Issue #216 Reproduction**: Could NOT reproduce error (Change Feed worked correctly)" >> test-report.md
+          else
+            echo "❌ **GitHub Issue #216 Reproduction**: Test failed" >> test-report.md
+          fi
+          
+          # Extract key test metrics
+          echo "" >> test-report.md
+          echo "## Test Metrics" >> test-report.md
+          grep -E "(Created|Success|Retrieved|Status Code)" test-output.log | head -20 >> test-report.md || echo "No metrics found" >> test-report.md
+          
+          # Check for any errors
+          echo "" >> test-report.md
+          echo "## Errors/Issues" >> test-report.md
+          if grep -E "(Error|Exception|❌)" test-output.log | head -10 > errors.tmp && [ -s errors.tmp ]; then
+            cat errors.tmp >> test-report.md
+          else
+            echo "No errors detected during testing." >> test-report.md
+          fi
+          rm -f errors.tmp
+        else
+          echo "❌ **Overall Status**: FAILED - No test output found" >> test-report.md
+        fi
+        
+        echo "" >> test-report.md
+        echo "## Summary" >> test-report.md
+        echo "This automated test verifies that the Cosmos DB vNext preview emulator correctly handles Change Feed operations," >> test-report.md
+        echo "specifically testing the scenario reported in GitHub Issue #216. The test creates containers with both" >> test-report.md
+        echo "hierarchical and simple partition keys, performs CRUD operations, and validates Change Feed functionality" >> test-report.md
+        echo "with PageSizeHint=100 (the exact configuration that caused the reported issue)." >> test-report.md
+        
+        cat test-report.md
+
+    - name: Upload Test Artifacts
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: cosmos-db-test-results
+        path: |
+          vnext/code-samples/dotnet/src/cosmosdb-vnext-test/test-output.log
+          vnext/code-samples/dotnet/src/cosmosdb-vnext-test/test-report.md
+        retention-days: 30
+
+    - name: Comment on PR (if applicable)
+      if: github.event_name == 'pull_request' && always()
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          try {
+            const reportPath = 'vnext/code-samples/dotnet/src/cosmosdb-vnext-test/test-report.md';
+            const report = fs.readFileSync(reportPath, 'utf8');
+            
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## 🧪 Cosmos DB vNext Emulator Test Results\n\n${report}`
+            });
+          } catch (error) {
+            console.log('Could not post comment:', error.message);
+          }
