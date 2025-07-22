@@ -397,7 +397,9 @@ FodyWeavers.xsd
 # JetBrains Rider
 *.sln.iml
 
-# Client-side library files (Bootstrap, jQuery, etc.)
-wwwroot/lib/
+# Client-side library files (LibMan generated files: Bootstrap, jQuery, etc.)
+# These files are restored using 'libman restore' command
+**/wwwroot/lib/
+**/wwwroot/lib/**
 
 .env

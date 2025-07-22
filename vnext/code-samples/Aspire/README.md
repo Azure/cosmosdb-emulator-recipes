@@ -16,6 +16,7 @@ The solution consists of:
 - [.NET 9.0 SDK](https://dotnet.microsoft.com/download/dotnet/9.0)
 - [Docker Desktop](https://www.docker.com/products/docker-desktop) (for Cosmos DB emulator)
 - [Visual Studio 2022](https://visualstudio.microsoft.com/vs/) or [VS Code](https://code.visualstudio.com/) with C# extension
+- [LibMan CLI](https://docs.microsoft.com/en-us/aspnet/core/client-side/libman/libman-cli) (for client-side library management)
 
 ## 🏃‍♂️ Getting Started
 
@@ -26,6 +27,12 @@ Navigate to the project directory and run the AppHost:
 ```bash
 # Navigate to the Aspire sample directory
 cd cosmosdb-emulator-recipes/vnext/code-samples/Aspire
+
+# Install LibMan CLI (if not already installed)
+dotnet tool install -g Microsoft.Web.LibraryManager.Cli
+
+# Restore client-side libraries (Bootstrap, etc.)
+cd CosmosDbEmulatorSample.Web && libman restore && cd ..
 
 # Build the solution first (recommended)
 dotnet build
@@ -167,10 +174,18 @@ var cosmosDb = builder.AddAzureCosmosDB("cosmos-db").RunAsPreviewEmulator(
 │   └── Program.cs                           # API endpoints
 ├── CosmosDbEmulatorSample.Web/              # Blazor web app
 │   ├── Components/Pages/                    # Razor pages
-│   └── Services/                            # HTTP clients
+│   ├── Services/                            # HTTP clients
+│   ├── libman.json                          # Client-side library configuration
+│   └── wwwroot/lib/                         # Generated client-side libraries (not in source control)
 ├── CosmosDbEmulatorSample.ServiceDefaults/  # Shared configuration
 └── api-test.sh                              # API testing script
 ```
+
+### Client-Side Dependencies
+
+This project uses [LibMan (Library Manager)](https://docs.microsoft.com/en-us/aspnet/core/client-side/libman/) to manage client-side libraries like Bootstrap. The `libman.json` file specifies which libraries to download, and `libman restore` downloads them to `wwwroot/lib/`. 
+
+**Note**: The `wwwroot/lib/` directory is excluded from source control via `.gitignore` since these are generated files.
 
 ### Key Features
 
