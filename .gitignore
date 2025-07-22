@@ -397,4 +397,7 @@ FodyWeavers.xsd
 # JetBrains Rider
 *.sln.iml
 
+# Client-side library files (Bootstrap, jQuery, etc.)
+wwwroot/lib/
+
 .env

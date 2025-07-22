@@ -1,0 +1,42 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.8.0.0
+MinimumVisualStudioVersion = 17.8.0.0
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CosmosDbEmulatorSample.AppHost", "CosmosDbEmulatorSample.AppHost\CosmosDbEmulatorSample.AppHost.csproj", "{E441DEE9-C771-4393-8CD2-0E80CFD61A57}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CosmosDbEmulatorSample.ServiceDefaults", "CosmosDbEmulatorSample.ServiceDefaults\CosmosDbEmulatorSample.ServiceDefaults.csproj", "{4998268A-4FC0-48E7-B13C-AB87D7E0CB16}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CosmosDbEmulatorSample.ApiService", "CosmosDbEmulatorSample.ApiService\CosmosDbEmulatorSample.ApiService.csproj", "{206124AB-1D6F-4BEA-9A38-C746DC871DC3}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CosmosDbEmulatorSample.Web", "CosmosDbEmulatorSample.Web\CosmosDbEmulatorSample.Web.csproj", "{EB79C812-DB88-48B1-926F-04858C74165D}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{E441DEE9-C771-4393-8CD2-0E80CFD61A57}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E441DEE9-C771-4393-8CD2-0E80CFD61A57}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E441DEE9-C771-4393-8CD2-0E80CFD61A57}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E441DEE9-C771-4393-8CD2-0E80CFD61A57}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4998268A-4FC0-48E7-B13C-AB87D7E0CB16}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4998268A-4FC0-48E7-B13C-AB87D7E0CB16}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4998268A-4FC0-48E7-B13C-AB87D7E0CB16}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4998268A-4FC0-48E7-B13C-AB87D7E0CB16}.Release|Any CPU.Build.0 = Release|Any CPU
+		{206124AB-1D6F-4BEA-9A38-C746DC871DC3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{206124AB-1D6F-4BEA-9A38-C746DC871DC3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{206124AB-1D6F-4BEA-9A38-C746DC871DC3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{206124AB-1D6F-4BEA-9A38-C746DC871DC3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{EB79C812-DB88-48B1-926F-04858C74165D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EB79C812-DB88-48B1-926F-04858C74165D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EB79C812-DB88-48B1-926F-04858C74165D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EB79C812-DB88-48B1-926F-04858C74165D}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {024989E7-FF1A-44BA-BA2C-AA0C87207EC7}
+	EndGlobalSection
+EndGlobal

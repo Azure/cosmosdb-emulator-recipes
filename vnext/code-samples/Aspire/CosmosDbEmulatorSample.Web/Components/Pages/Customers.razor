@@ -1,0 +1,267 @@
+@page "/customers"
+@rendermode InteractiveServer
+@inject CustomerApiClient CustomerApi
+@inject ILogger<Customers> Logger
+
+<PageTitle>Customers</PageTitle>
+
+<h1>Customers</h1>
+
+@if (isLoading)
+{
+    <div class="d-flex justify-content-center">
+        <div class="spinner-border" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    </div>
+}
+else if (!string.IsNullOrEmpty(errorMessage))
+{
+    <div class="alert alert-danger" role="alert">
+        <strong>Error:</strong> @errorMessage
+        <button type="button" class="btn-close" @onclick="ClearError" aria-label="Close"></button>
+    </div>
+}
+else
+{
+    <div class="row">
+        <div class="col-md-12">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h3>Customer Directory (@customers.Count customers)</h3>
+                <button class="btn btn-success" @onclick="ShowCreateForm">
+                    <i class="bi bi-person-plus"></i> Add New Customer
+                </button>
+            </div>
+
+            @if (showCreateForm)
+            {
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5>Create New Customer</h5>
+                    </div>
+                    <div class="card-body">
+                        <EditForm Model="newCustomer" OnValidSubmit="CreateCustomer">
+                            <DataAnnotationsValidator />
+                            <ValidationSummary class="text-danger" />
+
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">First Name</label>
+                                        <InputText @bind-Value="newCustomer.FirstName" class="form-control" />
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">Last Name</label>
+                                        <InputText @bind-Value="newCustomer.LastName" class="form-control" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">Email</label>
+                                        <InputText @bind-Value="newCustomer.Email" class="form-control" type="email" />
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">Phone Number</label>
+                                        <InputText @bind-Value="newCustomer.PhoneNumber" class="form-control" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Address</label>
+                                <div class="row">
+                                    <div class="col-12 mb-2">
+                                        <input @bind="addressStreet" class="form-control" placeholder="Street Address" />
+                                    </div>
+                                    <div class="col-md-6 mb-2">
+                                        <input @bind="addressCity" class="form-control" placeholder="City" />
+                                    </div>
+                                    <div class="col-md-3 mb-2">
+                                        <input @bind="addressState" class="form-control" placeholder="State" />
+                                    </div>
+                                    <div class="col-md-3 mb-2">
+                                        <input @bind="addressZipCode" class="form-control" placeholder="ZIP Code" />
+                                    </div>
+                                    <div class="col-12">
+                                        <input @bind="addressCountry" class="form-control" placeholder="Country" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="d-flex justify-content-end">
+                                <button type="button" class="btn btn-secondary me-2" @onclick="CancelCreate">Cancel</button>
+                                <button type="submit" class="btn btn-primary" disabled="@isCreating">
+                                    @if (isCreating)
+                                    {
+                                        <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                                    }
+                                    Create Customer
+                                </button>
+                            </div>
+                        </EditForm>
+                    </div>
+                </div>
+            }
+
+            <div class="row">
+                @foreach (var customer in customers)
+                {
+                    <div class="col-md-6 mb-3">
+                        <div class="card">
+                            <div class="card-body">
+                                <h5 class="card-title">@customer.FirstName @customer.LastName</h5>
+                                <p class="card-text">
+                                    <strong>Email:</strong> @customer.Email<br>
+                                    <strong>Phone:</strong> @customer.PhoneNumber<br>
+                                    @if (customer.Address != null)
+                                    {
+                                        <strong>Address:</strong> @customer.AddressString<br>
+                                    }
+                                    <strong>Customer ID:</strong> @customer.CustomerId<br>
+                                    <strong>Joined:</strong> @customer.CreatedDate.ToString("MMM dd, yyyy")
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+
+            @if (customers.Count == 0)
+            {
+                <div class="text-center py-5">
+                    <i class="bi bi-people" style="font-size: 3rem; color: #6c757d;"></i>
+                    <h4 class="mt-3 text-muted">No Customers Found</h4>
+                    <p class="text-muted">Start by adding your first customer to the directory.</p>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private List<CustomerDto> customers = new();
+    private CustomerDto newCustomer = new();
+    
+    // Address form fields
+    private string addressStreet = string.Empty;
+    private string addressCity = string.Empty;
+    private string addressState = string.Empty;
+    private string addressZipCode = string.Empty;
+    private string addressCountry = string.Empty;
+    private bool isLoading = true;
+    private bool isCreating = false;
+    private bool showCreateForm = false;
+    private string errorMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCustomersAsync();
+    }
+
+    private void ClearError()
+    {
+        errorMessage = string.Empty;
+        StateHasChanged();
+    }
+
+    private void ShowCreateForm()
+    {
+        showCreateForm = true;
+        newCustomer = new CustomerDto();
+        ClearAddressFields();
+        StateHasChanged();
+    }
+
+    private void CancelCreate()
+    {
+        showCreateForm = false;
+        newCustomer = new CustomerDto();
+        ClearAddressFields();
+        StateHasChanged();
+    }
+
+    private void ClearAddressFields()
+    {
+        addressStreet = string.Empty;
+        addressCity = string.Empty;
+        addressState = string.Empty;
+        addressZipCode = string.Empty;
+        addressCountry = string.Empty;
+    }
+
+    private async Task LoadCustomersAsync()
+    {
+        try
+        {
+            isLoading = true;
+            errorMessage = string.Empty;
+            StateHasChanged();
+
+            Logger.LogInformation("Loading customers...");
+            customers = await CustomerApi.GetCustomersAsync();
+            Logger.LogInformation("Loaded {Count} customers", customers.Count);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load customers");
+            errorMessage = $"Failed to load customers: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task CreateCustomer()
+    {
+        try
+        {
+            isCreating = true;
+            errorMessage = string.Empty;
+            StateHasChanged();
+
+            // Build address object if any address fields are provided
+            if (!string.IsNullOrWhiteSpace(addressStreet) || !string.IsNullOrWhiteSpace(addressCity) || 
+                !string.IsNullOrWhiteSpace(addressState) || !string.IsNullOrWhiteSpace(addressZipCode) || 
+                !string.IsNullOrWhiteSpace(addressCountry))
+            {
+                newCustomer.Address = new AddressDto
+                {
+                    Street = addressStreet.Trim(),
+                    City = addressCity.Trim(),
+                    State = addressState.Trim(),
+                    ZipCode = addressZipCode.Trim(),
+                    Country = addressCountry.Trim()
+                };
+            }
+
+            Logger.LogInformation("Creating customer: {Name}", $"{newCustomer.FirstName} {newCustomer.LastName}");
+            var createdCustomer = await CustomerApi.CreateCustomerAsync(newCustomer);
+            customers.Add(createdCustomer);
+            
+            showCreateForm = false;
+            newCustomer = new CustomerDto();
+            ClearAddressFields();
+            
+            Logger.LogInformation("Successfully created customer: {Id}", createdCustomer.Id);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to create customer");
+            errorMessage = $"Failed to create customer: {ex.Message}";
+        }
+        finally
+        {
+            isCreating = false;
+            StateHasChanged();
+        }
+    }
+}

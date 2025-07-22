@@ -1,0 +1,172 @@
+﻿@page "/"
+@rendermode InteractiveServer
+@inject ProductApiClient ProductApi
+@inject CustomerApiClient CustomerApi
+@inject OrderApiClient OrderApi
+@inject ILogger<Home> Logger
+
+<PageTitle>Home</PageTitle>
+
+<h1>Azure Cosmos DB Emulator Sample</h1>
+
+<p>Welcome to the Cosmos DB Emulator Sample application built with .NET Aspire! This application demonstrates CRUD operations with Azure Cosmos DB using Products, Customers, and Orders.</p>
+
+@if (isLoading)
+{
+    <div class="d-flex justify-content-center">
+        <div class="spinner-border" role="status">
+            <span class="visually-hidden">Loading dashboard...</span>
+        </div>
+    </div>
+}
+else if (!string.IsNullOrEmpty(errorMessage))
+{
+    <div class="alert alert-warning" role="alert">
+        <strong>Dashboard data unavailable:</strong> @errorMessage
+    </div>
+}
+else
+{
+    <div class="row mt-4">
+        <div class="col-md-4">
+            <div class="card text-center border-primary">
+                <div class="card-body">
+                    <i class="bi bi-box-seam text-primary" style="font-size: 2rem;"></i>
+                    <h5 class="card-title mt-2">Products</h5>
+                    <h2 class="text-primary">@productCount</h2>
+                    <p class="card-text">Total products in catalog</p>
+                    <a href="/products" class="btn btn-primary">View Products</a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card text-center border-success">
+                <div class="card-body">
+                    <i class="bi bi-people text-success" style="font-size: 2rem;"></i>
+                    <h5 class="card-title mt-2">Customers</h5>
+                    <h2 class="text-success">@customerCount</h2>
+                    <p class="card-text">Registered customers</p>
+                    <a href="/customers" class="btn btn-success">View Customers</a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card text-center border-warning">
+                <div class="card-body">
+                    <i class="bi bi-cart text-warning" style="font-size: 2rem;"></i>
+                    <h5 class="card-title mt-2">Orders</h5>
+                    <h2 class="text-warning">@orderCount</h2>
+                    <p class="card-text">Total orders placed</p>
+                    <a href="/orders" class="btn btn-warning">View Orders</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Quick Actions</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex flex-wrap gap-2">
+                        <a href="/create-order" class="btn btn-primary">
+                            <i class="bi bi-plus-circle"></i> Create New Order
+                        </a>
+                        <a href="/products" class="btn btn-outline-primary">
+                            <i class="bi bi-plus-circle"></i> Add Product
+                        </a>
+                        <a href="/customers" class="btn btn-outline-success">
+                            <i class="bi bi-person-plus"></i> Add Customer
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5>About This Application</h5>
+                </div>
+                <div class="card-body">
+                    <p>This sample application demonstrates:</p>
+                    <ul>
+                        <li><strong>.NET Aspire</strong> - Cloud-native application development</li>
+                        <li><strong>Azure Cosmos DB Emulator</strong> - Local development with Cosmos DB</li>
+                        <li><strong>Blazor Server</strong> - Interactive web UI</li>
+                        <li><strong>CRUD Operations</strong> - Complete Create, Read, Update, Delete functionality</li>
+                        <li><strong>Service Architecture</strong> - Separation of API and Web layers</li>
+                    </ul>
+                    
+                    <h6 class="mt-3">Technologies Used:</h6>
+                    <div class="d-flex flex-wrap gap-2 mt-2">
+                        <span class="badge bg-primary">.NET 9.0</span>
+                        <span class="badge bg-info">Aspire 9.3.1</span>
+                        <span class="badge bg-success">Blazor Server</span>
+                        <span class="badge bg-warning">Azure Cosmos DB</span>
+                        <span class="badge bg-danger">Bootstrap 5</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private int productCount = 0;
+    private int customerCount = 0;
+    private int orderCount = 0;
+    private bool isLoading = true;
+    private string errorMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDashboardDataAsync();
+    }
+
+    private async Task LoadDashboardDataAsync()
+    {
+        try
+        {
+            isLoading = true;
+            errorMessage = string.Empty;
+            StateHasChanged();
+
+            Logger.LogInformation("Loading dashboard data...");
+
+            // Load data in parallel
+            var productsTask = ProductApi.GetProductsAsync();
+            var customersTask = CustomerApi.GetCustomersAsync();
+            var ordersTask = OrderApi.GetOrdersAsync();
+
+            await Task.WhenAll(productsTask, customersTask, ordersTask);
+
+            var products = await productsTask;
+            var customers = await customersTask;
+            var orders = await ordersTask;
+
+            productCount = products.Count;
+            customerCount = customers.Count;
+            orderCount = orders.Count;
+
+            Logger.LogInformation("Dashboard loaded: {Products} products, {Customers} customers, {Orders} orders", 
+                productCount, customerCount, orderCount);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load dashboard data");
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+}

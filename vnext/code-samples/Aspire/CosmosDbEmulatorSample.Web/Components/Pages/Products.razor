@@ -1,0 +1,216 @@
+@page "/products"
+@rendermode InteractiveServer
+@inject ProductApiClient ProductApi
+@inject ILogger<Products> Logger
+
+<PageTitle>Products</PageTitle>
+
+<h1>Products</h1>
+
+@if (isLoading)
+{
+    <div class="d-flex justify-content-center">
+        <div class="spinner-border" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    </div>
+}
+else if (!string.IsNullOrEmpty(errorMessage))
+{
+    <div class="alert alert-danger" role="alert">
+        <strong>Error:</strong> @errorMessage
+        <button type="button" class="btn-close" @onclick="ClearError" aria-label="Close"></button>
+    </div>
+}
+else
+{
+    <div class="row">
+        <div class="col-md-12">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h3>Product Catalog (@products.Count items)</h3>
+                <button class="btn btn-success" @onclick="ShowCreateForm">
+                    <i class="bi bi-plus-circle"></i> Add New Product
+                </button>
+            </div>
+
+            @if (showCreateForm)
+            {
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5>Create New Product</h5>
+                    </div>
+                    <div class="card-body">
+                        <EditForm Model="newProduct" OnValidSubmit="CreateProduct">
+                            <DataAnnotationsValidator />
+                            <ValidationSummary class="text-danger" />
+
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">Name</label>
+                                        <InputText @bind-Value="newProduct.Name" class="form-control" />
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">Category</label>
+                                        <InputText @bind-Value="newProduct.Category" class="form-control" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Description</label>
+                                <InputTextArea @bind-Value="newProduct.Description" class="form-control" rows="3" />
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">Price</label>
+                                        <InputNumber @bind-Value="newProduct.Price" class="form-control" step="0.01" />
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">Stock Quantity</label>
+                                        <InputNumber @bind-Value="newProduct.StockQuantity" class="form-control" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="d-flex justify-content-end">
+                                <button type="button" class="btn btn-secondary me-2" @onclick="CancelCreate">Cancel</button>
+                                <button type="submit" class="btn btn-primary" disabled="@isCreating">
+                                    @if (isCreating)
+                                    {
+                                        <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                                    }
+                                    Create Product
+                                </button>
+                            </div>
+                        </EditForm>
+                    </div>
+                </div>
+            }
+
+            <div class="row">
+                @foreach (var product in products)
+                {
+                    <div class="col-md-4 mb-3">
+                        <div class="card h-100">
+                            <div class="card-body">
+                                <h5 class="card-title">@product.Name</h5>
+                                <h6 class="card-subtitle mb-2 text-muted">@product.Category</h6>
+                                <p class="card-text">@product.Description</p>
+                                <p class="card-text">
+                                    <strong>Price:</strong> $@product.Price.ToString("F2")<br>
+                                    <strong>Stock:</strong> @product.StockQuantity units
+                                </p>
+                            </div>
+                            <div class="card-footer">
+                                <small class="text-muted">ID: @product.Id</small>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+
+            @if (products.Count == 0)
+            {
+                <div class="text-center py-5">
+                    <i class="bi bi-box-seam" style="font-size: 3rem; color: #6c757d;"></i>
+                    <h4 class="mt-3 text-muted">No Products Found</h4>
+                    <p class="text-muted">Start by adding your first product to the catalog.</p>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private List<ProductDto> products = new();
+    private ProductDto newProduct = new();
+    private bool isLoading = true;
+    private bool isCreating = false;
+    private bool showCreateForm = false;
+    private string errorMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadProductsAsync();
+    }
+
+    private void ClearError()
+    {
+        errorMessage = string.Empty;
+        StateHasChanged();
+    }
+
+    private void ShowCreateForm()
+    {
+        showCreateForm = true;
+        newProduct = new ProductDto();
+        StateHasChanged();
+    }
+
+    private void CancelCreate()
+    {
+        showCreateForm = false;
+        newProduct = new ProductDto();
+        StateHasChanged();
+    }
+
+    private async Task LoadProductsAsync()
+    {
+        try
+        {
+            isLoading = true;
+            errorMessage = string.Empty;
+            StateHasChanged();
+
+            Logger.LogInformation("Loading products...");
+            products = await ProductApi.GetProductsAsync();
+            Logger.LogInformation("Loaded {Count} products", products.Count);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load products");
+            errorMessage = $"Failed to load products: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task CreateProduct()
+    {
+        try
+        {
+            isCreating = true;
+            errorMessage = string.Empty;
+            StateHasChanged();
+
+            Logger.LogInformation("Creating product: {Name}", newProduct.Name);
+            var createdProduct = await ProductApi.CreateProductAsync(newProduct);
+            products.Add(createdProduct);
+            
+            showCreateForm = false;
+            newProduct = new ProductDto();
+            
+            Logger.LogInformation("Successfully created product: {Id}", createdProduct.Id);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to create product");
+            errorMessage = $"Failed to create product: {ex.Message}";
+        }
+        finally
+        {
+            isCreating = false;
+            StateHasChanged();
+        }
+    }
+}
