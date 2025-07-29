@@ -11,14 +11,64 @@ public class ProductService
     private readonly CosmosClient _cosmosClient;
     private Container _container = null!;
     private readonly ILogger<ProductService> _logger;
+    private readonly SemaphoreSlim _initializationSemaphore = new(1, 1);
+    private bool _isInitialized = false;
 
     public ProductService(CosmosClient cosmosClient, ILogger<ProductService> logger)
     {
         _cosmosClient = cosmosClient;
         _logger = logger;
-        
-        // Initialize database and container
-        InitializeAsync().GetAwaiter().GetResult();
+    }
+
+    private async Task EnsureInitializedAsync()
+    {
+        if (_isInitialized)
+        {
+            // Double-check that the container still exists and is accessible
+            if (await IsContainerAccessibleAsync())
+                return;
+            
+            // Container is not accessible, reset initialization flag
+            _logger.LogWarning("Products container is not accessible, reinitializing...");
+            _isInitialized = false;
+        }
+
+        await _initializationSemaphore.WaitAsync();
+        try
+        {
+            if (_isInitialized && await IsContainerAccessibleAsync())
+                return;
+
+            await InitializeAsync();
+            _isInitialized = true;
+        }
+        finally
+        {
+            _initializationSemaphore.Release();
+        }
+    }
+
+    private async Task<bool> IsContainerAccessibleAsync()
+    {
+        try
+        {
+            if (_container == null)
+                return false;
+
+            // Try to read the container properties to verify it exists and is accessible
+            await _container.ReadContainerAsync();
+            return true;
+        }
+        catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            _logger.LogDebug("Products container not found, will reinitialize");
+            return false;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Products container not accessible, will reinitialize");
+            return false;
+        }
     }
 
     private async Task InitializeAsync()
@@ -64,6 +114,8 @@ public class ProductService
     /// </summary>
     public async Task<Product> CreateProductAsync(Product product)
     {
+        await EnsureInitializedAsync();
+        
         try
         {
             product.Id = Guid.NewGuid().ToString();
@@ -87,6 +139,8 @@ public class ProductService
     /// </summary>
     public async Task<Product?> GetProductAsync(string id, string category)
     {
+        await EnsureInitializedAsync();
+        
         try
         {
             var response = await _container.ReadItemAsync<Product>(id, new PartitionKey(category));
@@ -109,6 +163,8 @@ public class ProductService
     /// </summary>
     public async Task<List<Product>> GetProductsAsync(string? category = null, int maxItems = 100)
     {
+        await EnsureInitializedAsync();
+        
         try
         {
             var queryText = category != null 
@@ -145,6 +201,8 @@ public class ProductService
     /// </summary>
     public async Task<Product?> UpdateProductAsync(string id, string category, Product updatedProduct)
     {
+        await EnsureInitializedAsync();
+        
         try
         {
             var existingProduct = await GetProductAsync(id, category);
@@ -184,6 +242,8 @@ public class ProductService
     /// </summary>
     public async Task<bool> DeleteProductAsync(string id, string category)
     {
+        await EnsureInitializedAsync();
+        
         try
         {
             await _container.DeleteItemAsync<Product>(id, new PartitionKey(category));

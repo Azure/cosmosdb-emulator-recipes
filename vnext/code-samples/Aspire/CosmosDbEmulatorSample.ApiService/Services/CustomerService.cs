@@ -11,14 +11,64 @@ public class CustomerService
     private readonly CosmosClient _cosmosClient;
     private Container _container = null!;
     private readonly ILogger<CustomerService> _logger;
+    private readonly SemaphoreSlim _initializationSemaphore = new(1, 1);
+    private bool _isInitialized = false;
 
     public CustomerService(CosmosClient cosmosClient, ILogger<CustomerService> logger)
     {
         _cosmosClient = cosmosClient;
         _logger = logger;
-        
-        // Initialize database and container
-        InitializeAsync().GetAwaiter().GetResult();
+    }
+
+    private async Task EnsureInitializedAsync()
+    {
+        if (_isInitialized)
+        {
+            // Double-check that the container still exists and is accessible
+            if (await IsContainerAccessibleAsync())
+                return;
+            
+            // Container is not accessible, reset initialization flag
+            _logger.LogWarning("Customers container is not accessible, reinitializing...");
+            _isInitialized = false;
+        }
+
+        await _initializationSemaphore.WaitAsync();
+        try
+        {
+            if (_isInitialized && await IsContainerAccessibleAsync())
+                return;
+
+            await InitializeAsync();
+            _isInitialized = true;
+        }
+        finally
+        {
+            _initializationSemaphore.Release();
+        }
+    }
+
+    private async Task<bool> IsContainerAccessibleAsync()
+    {
+        try
+        {
+            if (_container == null)
+                return false;
+
+            // Try to read the container properties to verify it exists and is accessible
+            await _container.ReadContainerAsync();
+            return true;
+        }
+        catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            _logger.LogDebug("Customers container not found, will reinitialize");
+            return false;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Customers container not accessible, will reinitialize");
+            return false;
+        }
     }
 
     private async Task InitializeAsync()
@@ -64,6 +114,8 @@ public class CustomerService
     /// </summary>
     public async Task<Customer> CreateCustomerAsync(Customer customer)
     {
+        await EnsureInitializedAsync();
+        
         try
         {
             customer.Id = Guid.NewGuid().ToString();
@@ -94,6 +146,8 @@ public class CustomerService
     /// </summary>
     public async Task<Customer?> GetCustomerAsync(string id, string customerId)
     {
+        await EnsureInitializedAsync();
+        
         try
         {
             var response = await _container.ReadItemAsync<Customer>(id, new PartitionKey(customerId));
@@ -116,6 +170,8 @@ public class CustomerService
     /// </summary>
     public async Task<Customer?> GetCustomerByCustomerIdAsync(string customerId)
     {
+        await EnsureInitializedAsync();
+        
         try
         {
             var queryText = "SELECT * FROM c WHERE c.customerId = @customerId";
@@ -144,6 +200,8 @@ public class CustomerService
     /// </summary>
     public async Task<List<Customer>> GetCustomersAsync(int maxItems = 100)
     {
+        await EnsureInitializedAsync();
+        
         try
         {
             var queryText = "SELECT * FROM c WHERE c.isActive = true";
@@ -173,6 +231,8 @@ public class CustomerService
     /// </summary>
     public async Task<Customer?> UpdateCustomerAsync(string id, string customerId, Customer updatedCustomer)
     {
+        await EnsureInitializedAsync();
+        
         try
         {
             var existingCustomer = await GetCustomerAsync(id, customerId);
@@ -213,6 +273,8 @@ public class CustomerService
     /// </summary>
     public async Task<bool> DeleteCustomerAsync(string id, string customerId)
     {
+        await EnsureInitializedAsync();
+        
         try
         {
             var customer = await GetCustomerAsync(id, customerId);
@@ -245,6 +307,8 @@ public class CustomerService
     /// </summary>
     public async Task<Customer?> GetCustomerByEmailAsync(string email)
     {
+        await EnsureInitializedAsync();
+        
         try
         {
             var queryText = "SELECT * FROM c WHERE c.email = @email AND c.isActive = true";

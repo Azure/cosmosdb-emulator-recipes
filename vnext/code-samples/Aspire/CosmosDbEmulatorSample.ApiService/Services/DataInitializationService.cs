@@ -30,13 +30,20 @@ public class DataInitializationService : BackgroundService
 
             _logger.LogInformation("Starting data initialization...");
 
-            // Check if data already exists
+            // Check if data already exists - check all entity types for more robust detection
             var existingProducts = await productService.GetProductsAsync();
-            if (existingProducts.Any())
+            var existingCustomers = await customerService.GetCustomersAsync();
+            var existingOrders = await orderService.GetOrdersAsync();
+            
+            if (existingProducts.Any() && existingCustomers.Any() && existingOrders.Any())
             {
-                _logger.LogInformation("Sample data already exists, skipping initialization");
+                _logger.LogInformation("Sample data already exists (Products: {ProductCount}, Customers: {CustomerCount}, Orders: {OrderCount}), skipping initialization", 
+                    existingProducts.Count, existingCustomers.Count, existingOrders.Count);
                 return;
             }
+
+            _logger.LogInformation("Found {ProductCount} products, {CustomerCount} customers, {OrderCount} orders. Proceeding with data initialization...", 
+                existingProducts.Count, existingCustomers.Count, existingOrders.Count);
 
             // Create sample products
             var products = new List<Product>
@@ -88,9 +95,22 @@ public class DataInitializationService : BackgroundService
             {
                 try
                 {
-                    var created = await productService.CreateProductAsync(product);
-                    createdProducts.Add(created);
-                    _logger.LogInformation("Created product: {ProductName}", created.Name);
+                    // Check if product already exists by searching for it
+                    var existingProduct = existingProducts.FirstOrDefault(p => 
+                        p.Name.Equals(product.Name, StringComparison.OrdinalIgnoreCase) && 
+                        p.Category.Equals(product.Category, StringComparison.OrdinalIgnoreCase));
+                    
+                    if (existingProduct != null)
+                    {
+                        _logger.LogInformation("Product already exists: {ProductName}, skipping creation", product.Name);
+                        createdProducts.Add(existingProduct);
+                    }
+                    else
+                    {
+                        var created = await productService.CreateProductAsync(product);
+                        createdProducts.Add(created);
+                        _logger.LogInformation("Created product: {ProductName}", created.Name);
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -129,9 +149,21 @@ public class DataInitializationService : BackgroundService
             {
                 try
                 {
-                    var created = await customerService.CreateCustomerAsync(customer);
-                    createdCustomers.Add(created);
-                    _logger.LogInformation("Created customer: {CustomerName}", $"{created.FirstName} {created.LastName}");
+                    // Check if customer already exists by email
+                    var existingCustomer = existingCustomers.FirstOrDefault(c => 
+                        c.Email.Equals(customer.Email, StringComparison.OrdinalIgnoreCase));
+                    
+                    if (existingCustomer != null)
+                    {
+                        _logger.LogInformation("Customer already exists: {CustomerEmail}, skipping creation", customer.Email);
+                        createdCustomers.Add(existingCustomer);
+                    }
+                    else
+                    {
+                        var created = await customerService.CreateCustomerAsync(customer);
+                        createdCustomers.Add(created);
+                        _logger.LogInformation("Created customer: {CustomerName}", $"{created.FirstName} {created.LastName}");
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -185,8 +217,22 @@ public class DataInitializationService : BackgroundService
                 {
                     try
                     {
-                        var created = await orderService.CreateOrderAsync(order);
-                        _logger.LogInformation("Created order: {OrderId} for customer {CustomerId}", created.Id, created.CustomerId);
+                        // Check if order already exists for this customer with same products
+                        var customerOrders = existingOrders.Where(o => o.CustomerId == order.CustomerId).ToList();
+                        var orderExists = customerOrders.Any(existingOrder => 
+                            existingOrder.Items.Count == order.Items.Count &&
+                            existingOrder.Items.All(ei => order.Items.Any(oi => 
+                                oi.ProductId == ei.ProductId && oi.Quantity == ei.Quantity)));
+                        
+                        if (orderExists)
+                        {
+                            _logger.LogInformation("Similar order already exists for customer: {CustomerId}, skipping creation", order.CustomerId);
+                        }
+                        else
+                        {
+                            var created = await orderService.CreateOrderAsync(order);
+                            _logger.LogInformation("Created order: {OrderId} for customer {CustomerId}", created.Id, created.CustomerId);
+                        }
                     }
                     catch (Exception ex)
                     {
@@ -196,8 +242,9 @@ public class DataInitializationService : BackgroundService
             }
 
             _logger.LogInformation("Data initialization completed successfully!");
-            _logger.LogInformation("Created {ProductCount} products, {CustomerCount} customers", 
-                createdProducts.Count, createdCustomers.Count);
+            _logger.LogInformation("Products: {ProductCount} total ({NewProductCount} created), Customers: {CustomerCount} total ({NewCustomerCount} created)", 
+                createdProducts.Count, createdProducts.Count - existingProducts.Count,
+                createdCustomers.Count, createdCustomers.Count - existingCustomers.Count);
         }
         catch (Exception ex)
         {

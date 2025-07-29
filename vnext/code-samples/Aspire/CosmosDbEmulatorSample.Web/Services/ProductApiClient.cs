@@ -4,7 +4,7 @@ namespace CosmosDbEmulatorSample.Web.Services;
 
 public class ProductApiClient(HttpClient httpClient, ILogger<ProductApiClient> logger)
 {
-    public async Task<List<ProductDto>> GetProductsAsync(string? category = null)
+    public async Task<List<ProductDto>> GetProductsAsync(string? category = null, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -13,7 +13,7 @@ public class ProductApiClient(HttpClient httpClient, ILogger<ProductApiClient> l
                 url += $"?category={Uri.EscapeDataString(category)}";
                 
             logger.LogInformation("Fetching products from API: {Url}", url);
-            var products = await httpClient.GetFromJsonAsync<List<ProductDto>>(url);
+            var products = await httpClient.GetFromJsonAsync<List<ProductDto>>(url, cancellationToken);
             logger.LogInformation("Successfully fetched {Count} products", products?.Count ?? 0);
             return products ?? new List<ProductDto>();
         }
@@ -24,12 +24,12 @@ public class ProductApiClient(HttpClient httpClient, ILogger<ProductApiClient> l
         }
     }
 
-    public async Task<ProductDto?> GetProductAsync(string id, string category)
+    public async Task<ProductDto?> GetProductAsync(string id, string category, CancellationToken cancellationToken = default)
     {
         try
         {
             logger.LogInformation("Fetching product {Id} from API", id);
-            var product = await httpClient.GetFromJsonAsync<ProductDto>($"/products/{id}?category={Uri.EscapeDataString(category)}");
+            var product = await httpClient.GetFromJsonAsync<ProductDto>($"/products/{id}?category={Uri.EscapeDataString(category)}", cancellationToken);
             logger.LogInformation("Successfully fetched product {Id}", id);
             return product;
         }
@@ -40,14 +40,14 @@ public class ProductApiClient(HttpClient httpClient, ILogger<ProductApiClient> l
         }
     }
 
-    public async Task<ProductDto> CreateProductAsync(ProductDto product)
+    public async Task<ProductDto> CreateProductAsync(ProductDto product, CancellationToken cancellationToken = default)
     {
         try
         {
             logger.LogInformation("Creating new product: {Name}", product.Name);
-            var response = await httpClient.PostAsJsonAsync("/products", product);
+            var response = await httpClient.PostAsJsonAsync("/products", product, cancellationToken);
             response.EnsureSuccessStatusCode();
-            var createdProduct = await response.Content.ReadFromJsonAsync<ProductDto>();
+            var createdProduct = await response.Content.ReadFromJsonAsync<ProductDto>(cancellationToken);
             logger.LogInformation("Successfully created product {Id}", createdProduct?.Id);
             return createdProduct!;
         }

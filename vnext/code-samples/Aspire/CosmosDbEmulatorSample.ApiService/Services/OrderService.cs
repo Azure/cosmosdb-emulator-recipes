@@ -11,14 +11,64 @@ public class OrderService
     private readonly CosmosClient _cosmosClient;
     private Container _container = null!;
     private readonly ILogger<OrderService> _logger;
+    private readonly SemaphoreSlim _initializationSemaphore = new(1, 1);
+    private bool _isInitialized = false;
 
     public OrderService(CosmosClient cosmosClient, ILogger<OrderService> logger)
     {
         _cosmosClient = cosmosClient;
         _logger = logger;
-        
-        // Initialize database and container
-        InitializeAsync().GetAwaiter().GetResult();
+    }
+
+    private async Task EnsureInitializedAsync()
+    {
+        if (_isInitialized)
+        {
+            // Double-check that the container still exists and is accessible
+            if (await IsContainerAccessibleAsync())
+                return;
+            
+            // Container is not accessible, reset initialization flag
+            _logger.LogWarning("Orders container is not accessible, reinitializing...");
+            _isInitialized = false;
+        }
+
+        await _initializationSemaphore.WaitAsync();
+        try
+        {
+            if (_isInitialized && await IsContainerAccessibleAsync())
+                return;
+
+            await InitializeAsync();
+            _isInitialized = true;
+        }
+        finally
+        {
+            _initializationSemaphore.Release();
+        }
+    }
+
+    private async Task<bool> IsContainerAccessibleAsync()
+    {
+        try
+        {
+            if (_container == null)
+                return false;
+
+            // Try to read the container properties to verify it exists and is accessible
+            await _container.ReadContainerAsync();
+            return true;
+        }
+        catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            _logger.LogDebug("Orders container not found, will reinitialize");
+            return false;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Orders container not accessible, will reinitialize");
+            return false;
+        }
     }
 
     private async Task InitializeAsync()
@@ -64,6 +114,8 @@ public class OrderService
     /// </summary>
     public async Task<Order> CreateOrderAsync(Order order)
     {
+        await EnsureInitializedAsync();
+        
         try
         {
             order.Id = Guid.NewGuid().ToString();
@@ -89,10 +141,12 @@ public class OrderService
     }
 
     /// <summary>
-    /// Get an order by ID and customer ID
+    /// Get an order by ID
     /// </summary>
     public async Task<Order?> GetOrderAsync(string id, string customerId)
     {
+        await EnsureInitializedAsync();
+        
         try
         {
             var response = await _container.ReadItemAsync<Order>(id, new PartitionKey(customerId));
@@ -111,10 +165,12 @@ public class OrderService
     }
 
     /// <summary>
-    /// Get all orders for a customer
+    /// Get orders for a specific customer
     /// </summary>
     public async Task<List<Order>> GetOrdersByCustomerAsync(string customerId, int maxItems = 100)
     {
+        await EnsureInitializedAsync();
+        
         try
         {
             var queryText = "SELECT * FROM c WHERE c.customerId = @customerId ORDER BY c.orderDate DESC";
@@ -145,6 +201,8 @@ public class OrderService
     /// </summary>
     public async Task<List<Order>> GetOrdersAsync(OrderStatus? status = null, int maxItems = 100)
     {
+        await EnsureInitializedAsync();
+        
         try
         {
             var queryText = status.HasValue 
@@ -181,6 +239,8 @@ public class OrderService
     /// </summary>
     public async Task<Order?> UpdateOrderAsync(string id, string customerId, Order updatedOrder)
     {
+        await EnsureInitializedAsync();
+        
         try
         {
             var existingOrder = await GetOrderAsync(id, customerId);
@@ -224,6 +284,8 @@ public class OrderService
     /// </summary>
     public async Task<Order?> UpdateOrderStatusAsync(string id, string customerId, OrderStatus newStatus)
     {
+        await EnsureInitializedAsync();
+        
         try
         {
             var order = await GetOrderAsync(id, customerId);
@@ -257,6 +319,8 @@ public class OrderService
     /// </summary>
     public async Task<bool> DeleteOrderAsync(string id, string customerId)
     {
+        await EnsureInitializedAsync();
+        
         try
         {
             await _container.DeleteItemAsync<Order>(id, new PartitionKey(customerId));
@@ -280,6 +344,8 @@ public class OrderService
     /// </summary>
     public async Task<object> GetOrderSummaryAsync()
     {
+        await EnsureInitializedAsync();
+        
         try
         {
             var queryText = @"SELECT 

@@ -5,8 +5,11 @@ var builder = DistributedApplication.CreateBuilder(args);
 var cosmosDb = builder.AddAzureCosmosDB("cosmos-db").RunAsPreviewEmulator(
     emulator =>
     {
-        emulator.WithDataExplorer();
-        emulator.WithGatewayPort(8081);
+        emulator.WithDataExplorer();                    // Enables Data Explorer UI
+        emulator.WithGatewayPort(8081);                 // Sets the gateway port
+        // Add volume for data persistence - data will survive container restarts
+        // This prevents the "Database does not exist" error when restarting the emulator
+        emulator.WithDataVolume();
     });
 
 // The database and containers will be created automatically by the services

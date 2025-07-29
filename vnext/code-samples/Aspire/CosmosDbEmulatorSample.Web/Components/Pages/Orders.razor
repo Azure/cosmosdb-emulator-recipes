@@ -54,7 +54,7 @@ else
                                 <tr>
                                     <td>@order.Id</td>
                                     <td>@order.CustomerId</td>
-                                    <td>@order.OrderDate.ToString("MMM dd, yyyy HH:mm")</td>
+                                    <td>@FormatOrderDate(order.OrderDate)</td>
                                     <td>
                                         <span class="badge @GetStatusBadgeClass(order.Status)">
                                             @order.Status
@@ -197,5 +197,10 @@ else
             isLoading = false;
             StateHasChanged();
         }
+    }
+
+    private string FormatOrderDate(DateTime? orderDate)
+    {
+        return orderDate?.ToString("MMM dd, yyyy HH:mm") ?? "N/A";
     }
 }

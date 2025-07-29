@@ -4,12 +4,12 @@ namespace CosmosDbEmulatorSample.Web.Services;
 
 public class OrderApiClient(HttpClient httpClient, ILogger<OrderApiClient> logger)
 {
-    public async Task<List<OrderDto>> GetOrdersAsync()
+    public async Task<List<OrderDto>> GetOrdersAsync(CancellationToken cancellationToken = default)
     {
         try
         {
             logger.LogInformation("Fetching orders from API");
-            var orders = await httpClient.GetFromJsonAsync<List<OrderDto>>("/orders");
+            var orders = await httpClient.GetFromJsonAsync<List<OrderDto>>("/orders", cancellationToken);
             logger.LogInformation("Successfully fetched {Count} orders", orders?.Count ?? 0);
             return orders ?? new List<OrderDto>();
         }
@@ -20,12 +20,12 @@ public class OrderApiClient(HttpClient httpClient, ILogger<OrderApiClient> logge
         }
     }
 
-    public async Task<OrderDto?> GetOrderAsync(string id, string customerId)
+    public async Task<OrderDto?> GetOrderAsync(string id, string customerId, CancellationToken cancellationToken = default)
     {
         try
         {
             logger.LogInformation("Fetching order {Id} from API", id);
-            var order = await httpClient.GetFromJsonAsync<OrderDto>($"/orders/{id}?customerId={Uri.EscapeDataString(customerId)}");
+            var order = await httpClient.GetFromJsonAsync<OrderDto>($"/orders/{id}?customerId={Uri.EscapeDataString(customerId)}", cancellationToken);
             logger.LogInformation("Successfully fetched order {Id}", id);
             return order;
         }
@@ -36,14 +36,14 @@ public class OrderApiClient(HttpClient httpClient, ILogger<OrderApiClient> logge
         }
     }
 
-    public async Task<OrderDto> CreateOrderAsync(OrderDto order)
+    public async Task<OrderDto> CreateOrderAsync(OrderDto order, CancellationToken cancellationToken = default)
     {
         try
         {
             logger.LogInformation("Creating new order for customer {CustomerId}", order.CustomerId);
-            var response = await httpClient.PostAsJsonAsync("/orders", order);
+            var response = await httpClient.PostAsJsonAsync("/orders", order, cancellationToken);
             response.EnsureSuccessStatusCode();
-            var createdOrder = await response.Content.ReadFromJsonAsync<OrderDto>();
+            var createdOrder = await response.Content.ReadFromJsonAsync<OrderDto>(cancellationToken);
             logger.LogInformation("Successfully created order {Id}", createdOrder?.Id);
             return createdOrder!;
         }
@@ -64,7 +64,7 @@ public record OrderDto
     public string CustomerId { get; set; } = string.Empty;
     
     [JsonPropertyName("orderDate")]
-    public DateTime OrderDate { get; set; } = DateTime.UtcNow;
+    public DateTime? OrderDate { get; set; } = DateTime.UtcNow;
     
     [JsonPropertyName("status")]
     public string Status { get; set; } = "Pending";

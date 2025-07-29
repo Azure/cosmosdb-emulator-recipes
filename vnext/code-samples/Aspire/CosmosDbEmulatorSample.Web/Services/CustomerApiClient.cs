@@ -4,12 +4,12 @@ namespace CosmosDbEmulatorSample.Web.Services;
 
 public class CustomerApiClient(HttpClient httpClient, ILogger<CustomerApiClient> logger)
 {
-    public async Task<List<CustomerDto>> GetCustomersAsync()
+    public async Task<List<CustomerDto>> GetCustomersAsync(CancellationToken cancellationToken = default)
     {
         try
         {
             logger.LogInformation("Fetching customers from API");
-            var customers = await httpClient.GetFromJsonAsync<List<CustomerDto>>("/customers");
+            var customers = await httpClient.GetFromJsonAsync<List<CustomerDto>>("/customers", cancellationToken);
             logger.LogInformation("Successfully fetched {Count} customers", customers?.Count ?? 0);
             return customers ?? new List<CustomerDto>();
         }
@@ -20,12 +20,12 @@ public class CustomerApiClient(HttpClient httpClient, ILogger<CustomerApiClient>
         }
     }
 
-    public async Task<CustomerDto?> GetCustomerAsync(string id, string customerId)
+    public async Task<CustomerDto?> GetCustomerAsync(string id, string customerId, CancellationToken cancellationToken = default)
     {
         try
         {
             logger.LogInformation("Fetching customer {Id} from API", id);
-            var customer = await httpClient.GetFromJsonAsync<CustomerDto>($"/customers/{id}?customerId={Uri.EscapeDataString(customerId)}");
+            var customer = await httpClient.GetFromJsonAsync<CustomerDto>($"/customers/{id}?customerId={Uri.EscapeDataString(customerId)}", cancellationToken);
             logger.LogInformation("Successfully fetched customer {Id}", id);
             return customer;
         }
@@ -36,14 +36,14 @@ public class CustomerApiClient(HttpClient httpClient, ILogger<CustomerApiClient>
         }
     }
 
-    public async Task<CustomerDto> CreateCustomerAsync(CustomerDto customer)
+    public async Task<CustomerDto> CreateCustomerAsync(CustomerDto customer, CancellationToken cancellationToken = default)
     {
         try
         {
             logger.LogInformation("Creating new customer: {Name}", $"{customer.FirstName} {customer.LastName}");
-            var response = await httpClient.PostAsJsonAsync("/customers", customer);
+            var response = await httpClient.PostAsJsonAsync("/customers", customer, cancellationToken);
             response.EnsureSuccessStatusCode();
-            var createdCustomer = await response.Content.ReadFromJsonAsync<CustomerDto>();
+            var createdCustomer = await response.Content.ReadFromJsonAsync<CustomerDto>(cancellationToken);
             logger.LogInformation("Successfully created customer {Id}", createdCustomer?.Id);
             return createdCustomer!;
         }

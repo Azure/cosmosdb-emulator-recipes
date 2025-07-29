@@ -1,4 +1,4 @@
-# Azure Cosmos DB Emulator Sample with .NET Aspire
+# Azure Cosmos DB Emulator Sample using .NET Aspire
 
 This sample demonstrates how to use Azure Cosmos DB with .NET Aspire, featuring a complete e-commerce application with Products, Customers, and Orders management.
 
@@ -149,10 +149,23 @@ The emulator is configured in `CosmosDbEmulatorSample.AppHost/Program.cs`:
 var cosmosDb = builder.AddAzureCosmosDB("cosmos-db").RunAsPreviewEmulator(
     emulator =>
     {
-        emulator.WithDataExplorer();      // Enables Data Explorer UI
-        emulator.WithGatewayPort(8081);   // Sets the gateway port
+        emulator.WithDataExplorer();                    // Enables Data Explorer UI
+        emulator.WithGatewayPort(8081);                 // Sets the gateway port
+        // Add volume for data persistence - data will survive container restarts
+        // This prevents the "Database does not exist" error when restarting the emulator
+        emulator.WithVolume("cosmosdb-data", "/tmp/cosmos/appdata");
     });
 ```
+
+#### Data Persistence
+
+The emulator is configured with a named volume (`cosmosdb-data`) to persist data across container restarts. This ensures that:
+
+- **Data survives container restarts**: Your databases, containers, and documents are preserved
+- **No "Database does not exist" errors**: Prevents initialization errors when the emulator restarts  
+- **Consistent development experience**: You can stop and restart the application without losing data
+
+The volume is automatically managed by Docker and will persist until explicitly removed.
 
 ### Database Structure
 
@@ -230,12 +243,26 @@ For more information about Azure Cosmos DB integration with .NET Aspire, see:
 1. **Docker not running**: Ensure Docker Desktop is running before starting the application
 2. **Port conflicts**: Check that ports 8081 (Cosmos DB) and others are not in use
 3. **Emulator startup**: The Cosmos DB emulator may take a few minutes to fully initialize
+4. **"Database does not exist" errors**: Fixed by adding volume persistence - data now survives container restarts
+
+### Volume Management
+
+If you need to reset the database completely:
+
+```bash
+# Stop the application first
+# Then remove the persistent volume
+docker volume rm cosmosdb-data
+
+# Restart the application - it will create fresh data
+```
 
 ### Logs and Diagnostics
 
 - Check the Aspire dashboard console logs for detailed error information
 - Use `docker logs` to inspect the Cosmos DB emulator container
 - Enable verbose logging by setting `Logging:LogLevel:Default=Debug` in appsettings
+- Use `docker volume ls` to verify the persistent volume exists
 
 ## 🏷️ Tags
 
