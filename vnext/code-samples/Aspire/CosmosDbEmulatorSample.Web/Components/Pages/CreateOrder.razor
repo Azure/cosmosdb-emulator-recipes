@@ -1,0 +1,312 @@
+@page "/create-order"
+@rendermode InteractiveServer
+@inject OrderApiClient OrderApi
+@inject ProductApiClient ProductApi
+@inject CustomerApiClient CustomerApi
+@inject NavigationManager Navigation
+@inject ILogger<CreateOrder> Logger
+
+<PageTitle>Create Order</PageTitle>
+
+<h1>Create New Order</h1>
+
+@if (isLoading)
+{
+    <div class="d-flex justify-content-center">
+        <div class="spinner-border" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    </div>
+}
+else if (!string.IsNullOrEmpty(errorMessage))
+{
+    <div class="alert alert-danger" role="alert">
+        <strong>Error:</strong> @errorMessage
+        <button type="button" class="btn-close" @onclick="ClearError" aria-label="Close"></button>
+    </div>
+}
+else
+{
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Order Details</h5>
+                </div>
+                <div class="card-body">
+                    <EditForm Model="newOrder" OnValidSubmit="CreateOrderAsync">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary class="text-danger" />
+
+                        <div class="mb-3">
+                            <label class="form-label">Customer</label>
+                            <select @bind="selectedCustomerId" class="form-select" required>
+                                <option value="">-- Select Customer --</option>
+                                @foreach (var customer in customers)
+                                {
+                                    <option value="@customer.CustomerId">@customer.FirstName @customer.LastName (@customer.Email)</option>
+                                }
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Add Products</label>
+                            <div class="input-group">
+                                <select @bind="selectedProductId" class="form-select">
+                                    <option value="">-- Select Product --</option>
+                                    @foreach (var product in products)
+                                    {
+                                        <option value="@product.Id">@product.Name - $@product.Price.ToString("F2") (Stock: @product.StockQuantity)</option>
+                                    }
+                                </select>
+                                <input type="number" @bind="selectedQuantity" class="form-control" placeholder="Quantity" min="1" style="max-width: 120px;" />
+                                <button type="button" class="btn btn-outline-primary" @onclick="AddProductToOrder">
+                                    <i class="bi bi-plus"></i> Add
+                                </button>
+                            </div>
+                        </div>
+
+                        @if (orderItems.Any())
+                        {
+                            <div class="mb-3">
+                                <label class="form-label">Order Items</label>
+                                <div class="table-responsive">
+                                    <table class="table table-sm">
+                                        <thead>
+                                            <tr>
+                                                <th>Product</th>
+                                                <th>Unit Price</th>
+                                                <th>Quantity</th>
+                                                <th>Total</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var item in orderItems)
+                                            {
+                                                <tr>
+                                                    <td>@item.ProductName</td>
+                                                    <td>$@item.UnitPrice.ToString("F2")</td>
+                                                    <td>@item.Quantity</td>
+                                                    <td>$@item.TotalPrice.ToString("F2")</td>
+                                                    <td>
+                                                        <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => RemoveProductFromOrder(item)">
+                                                            <i class="bi bi-trash"></i>
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        }
+
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>Total Amount: $@totalAmount.ToString("F2")</strong>
+                            </div>
+                            <div>
+                                <a href="/orders" class="btn btn-secondary me-2">Cancel</a>
+                                <button type="submit" class="btn btn-primary" disabled="@(isCreating || !orderItems.Any() || string.IsNullOrEmpty(selectedCustomerId))">
+                                    @if (isCreating)
+                                    {
+                                        <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                                    }
+                                    Create Order
+                                </button>
+                            </div>
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h6>Order Summary</h6>
+                </div>
+                <div class="card-body">
+                    <p><strong>Items:</strong> @orderItems.Count</p>
+                    <p><strong>Total Quantity:</strong> @orderItems.Sum(i => i.Quantity)</p>
+                    <p><strong>Total Amount:</strong> $@totalAmount.ToString("F2")</p>
+                    
+                    @if (!string.IsNullOrEmpty(selectedCustomerId))
+                    {
+                        var customer = customers.FirstOrDefault(c => c.Id == selectedCustomerId);
+                        if (customer != null)
+                        {
+                            <hr>
+                            <h6>Customer Information</h6>
+                            <p class="mb-1"><strong>@customer.FirstName @customer.LastName</strong></p>
+                            <p class="mb-1 text-muted">@customer.Email</p>
+                            <p class="mb-1 text-muted">@customer.PhoneNumber</p>
+                        }
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<ProductDto> products = new();
+    private List<CustomerDto> customers = new();
+    private List<OrderItemDto> orderItems = new();
+    private OrderDto newOrder = new();
+    
+    private string selectedCustomerId = string.Empty;
+    private string selectedProductId = string.Empty;
+    private int selectedQuantity = 1;
+    private decimal totalAmount = 0;
+    
+    private bool isLoading = true;
+    private bool isCreating = false;
+    private string errorMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDataAsync();
+    }
+
+    private void ClearError()
+    {
+        errorMessage = string.Empty;
+        StateHasChanged();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        try
+        {
+            isLoading = true;
+            errorMessage = string.Empty;
+            StateHasChanged();
+
+            Logger.LogInformation("Loading products and customers...");
+            
+            var productsTask = ProductApi.GetProductsAsync();
+            var customersTask = CustomerApi.GetCustomersAsync();
+            
+            await Task.WhenAll(productsTask, customersTask);
+            
+            products = await productsTask;
+            customers = await customersTask;
+            
+            Logger.LogInformation("Loaded {ProductCount} products and {CustomerCount} customers", products.Count, customers.Count);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load data");
+            errorMessage = $"Failed to load data: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void AddProductToOrder()
+    {
+        if (string.IsNullOrEmpty(selectedProductId) || selectedQuantity <= 0)
+        {
+            errorMessage = "Please select a product and specify a valid quantity.";
+            return;
+        }
+
+        var product = products.FirstOrDefault(p => p.Id == selectedProductId);
+        if (product == null)
+        {
+            errorMessage = "Selected product not found.";
+            return;
+        }
+
+        if (selectedQuantity > product.StockQuantity)
+        {
+            errorMessage = $"Not enough stock. Available: {product.StockQuantity}";
+            return;
+        }
+
+        // Check if product is already in order
+        var existingItem = orderItems.FirstOrDefault(i => i.ProductId == selectedProductId);
+        if (existingItem != null)
+        {
+            existingItem.Quantity += selectedQuantity;
+        }
+        else
+        {
+            orderItems.Add(new OrderItemDto
+            {
+                ProductId = product.Id,
+                ProductName = product.Name,
+                Quantity = selectedQuantity,
+                UnitPrice = product.Price
+            });
+        }
+
+        CalculateTotalAmount();
+        
+        // Reset selection
+        selectedProductId = string.Empty;
+        selectedQuantity = 1;
+        errorMessage = string.Empty;
+        
+        StateHasChanged();
+    }
+
+    private void RemoveProductFromOrder(OrderItemDto item)
+    {
+        orderItems.Remove(item);
+        CalculateTotalAmount();
+        StateHasChanged();
+    }
+
+    private void CalculateTotalAmount()
+    {
+        totalAmount = orderItems.Sum(i => i.TotalPrice);
+    }
+
+    private async Task CreateOrderAsync()
+    {
+        try
+        {
+            isCreating = true;
+            errorMessage = string.Empty;
+            StateHasChanged();
+
+            if (string.IsNullOrEmpty(selectedCustomerId))
+            {
+                errorMessage = "Please select a customer.";
+                return;
+            }
+
+            if (!orderItems.Any())
+            {
+                errorMessage = "Please add at least one product to the order.";
+                return;
+            }
+
+            newOrder.CustomerId = selectedCustomerId;
+            newOrder.Items = orderItems.ToList();
+            newOrder.TotalAmount = totalAmount;
+
+            Logger.LogInformation("Creating order for customer {CustomerId} with {ItemCount} items", selectedCustomerId, orderItems.Count);
+            var createdOrder = await OrderApi.CreateOrderAsync(newOrder);
+            Logger.LogInformation("Successfully created order {OrderId}", createdOrder.Id);
+
+            Navigation.NavigateTo("/orders");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to create order");
+            errorMessage = $"Failed to create order: {ex.Message}";
+        }
+        finally
+        {
+            isCreating = false;
+            StateHasChanged();
+        }
+    }
+}
